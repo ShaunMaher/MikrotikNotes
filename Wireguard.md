@@ -51,7 +51,8 @@ RouterOS VM instance.
 
 Assuming your DHCP client configuration is creating an address pool called
 "LAN" and your LAN interface is called "brLAN" (which for me is a bridge between
-two physical interfaces): ![DHCPv6](Wireguard/DHCPv6-01.png)
+two physical interfaces):
+![DHCPv6](Wireguard/DHCPv6-01.png)
 
 ```
 /ipv6 dhcp-server
