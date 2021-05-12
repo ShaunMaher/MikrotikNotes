@@ -1,7 +1,14 @@
 ![Product Logos: RouterOS, Wireguard and Android](Wireguard/RouterosPlusWireguardPlusAndroid.png)
-# Wireguard
+# RouterOS + Wireguard + Android
 ## Overview
 This document is still a work in progress.
+
+TODO:
+- [ ] Networking is broken if device is on home Wifi (i.e. same network as the Wireguard server)
+- [ ] No IPv4 support
+- [ ] Create a public DNS AAAA record for the RouterOS Peer
+- [ ] Generally the language below is poor and could be improved
+- [ ] Wireguard Peer screen shot contains the peer public key in the title bar
 
 I'm trying to make all parts of my network IPv6 native.  All devices that
 support it are dual stack IPv4 and IPv6.  My ISP provides an IPv6 /56 subnet
@@ -52,6 +59,7 @@ RouterOS VM instance.
 Assuming your DHCP client configuration is creating an address pool called
 "LAN" and your LAN interface is called "brLAN" (which for me is a bridge between
 two physical interfaces):
+
 ![DHCPv6](Wireguard/DHCPv6-01.png)
 
 ```
