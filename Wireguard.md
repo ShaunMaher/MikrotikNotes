@@ -131,7 +131,7 @@ the IPv6 private IP range.  The advantage here is that if our ISP changes our
 IPv6 prefix we don't need to reconfigure our network.  The down side is that you
 would need to setup static routes on (at least) your core router to send packets
 to wireguard clients via the wireguard interface (which might be on another
-RouterOS device).
+RouterOS device).  https://dnschecker.org/ipv6-address-generator.php
 
 The alternative, which is what I have implemented, is to use IPs out of the
 prefix that was assigned to the wireguard1 interface from DHCPv6.  The advantage
