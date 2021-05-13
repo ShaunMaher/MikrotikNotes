@@ -4,6 +4,7 @@
 This document is still a work in progress.
 
 TODO:
+- [ ] Write a better Intro/Overview
 - [ ] Networking is *sometimes* broken if device is on home Wifi (i.e. same network as the Wireguard server)
 - [ ] No support for IPv4 only mobile data network
 - [ ] Create a public DNS AAAA record for the RouterOS Peer
