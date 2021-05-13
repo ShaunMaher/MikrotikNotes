@@ -4,8 +4,8 @@
 This document is still a work in progress.
 
 TODO:
-- [ ] Networking is broken if device is on home Wifi (i.e. same network as the Wireguard server)
-- [ ] No IPv4 support
+- [ ] Networking is *sometimes* broken if device is on home Wifi (i.e. same network as the Wireguard server)
+- [ ] No support for IPv4 only mobile data network
 - [ ] Create a public DNS AAAA record for the RouterOS Peer
 - [ ] Generally the language below is poor and could be improved
 - [ ] Wireguard Peer screen shot contains the peer public key in the title bar
@@ -48,6 +48,40 @@ set enabled=yes
 add address=0.pool.ntp.org
 ```
 
+## Addressing
+### IPv4
+We do need to be able to support legacy devices and systems and, if we're going
+to use our home network ISP as the egress point for the mobile device's internet
+access (see goal #2), we need to support the IPv4 only parts of the internet.
+
+I picked two unused IPv4 subnets that I haven't used elsewhere (my network uses
+several subnets):
+* 172.31.4.128/26 (64 IPs): Will be assigned to Wireguard peers
+* 172.31.4.192/26 (64 IPs): Routing between my core router and my wireguard
+router.  This avoids asymmetric routing.  This is probably unnecessary if you
+run Wireguard on your core router.
+  * 172.31.4.193: The core router
+  * 172.31.4.199: The Wireguard router
+
+### IPv6
+We need to decide what virtual IP addresses to assign to the peer's wireguard
+interfaces.
+
+We can (though I gave this limited testing) use IP addresses from
+the IPv6 private IP range.  The advantage here is that if our ISP changes our
+IPv6 prefix we don't need to reconfigure our network.  The down side is that you
+would need to setup static routes on (at least) your core router to send packets
+to wireguard clients via the wireguard interface (which might be on another
+RouterOS device).  https://dnschecker.org/ipv6-address-generator.php
+
+The alternative, which is what I have implemented, is to use IPs out of the
+prefix that was assigned to the wireguard1 interface from DHCPv6.  The advantage
+being that everything on my network knows how to route that prefix already.
+
+So, for me, my wireguard1 interface on my RouterOS VM is:
+2403:5800:3200:1403:300::1 and I'm going to use 2403:5800:3200:1403:300::5 as
+the first IP I assign to a device.
+
 ## RouterOS 7 VM
 If you are using an existing device on your network, you probably don't need anything in this section.  Please skip ahead.
 
@@ -66,6 +100,18 @@ two physical interfaces):
 /ipv6 dhcp-server
 add address-pool=LAN interface=brLAN lease-time=1h name=LANv6
 ```
+```
+/ip pool
+add name=dhcp-ISR2 ranges=172.31.4.194-172.31.4.199
+/ip address
+add address=172.31.4.193/26 interface=brLAN network=172.31.4.192
+/ip dhcp-server lease
+add address=172.31.4.199 client-id=1:52:54:0:8d:28:4b mac-address=52:54:00:8D:28:4B server=dhcp-LAN
+/ip dhcp-server network
+add address=172.31.4.192/26 comment=ISR2 dns-server=172.30.0.1 gateway=172.31.4.193
+/ip route
+add check-gateway=ping distance=1 dst-address=172.31.4.128/26 gateway=172.31.4.199
+```
 
 ### On the RouterOS VM
 ![DHCPv6](Wireguard/DHCPv6-02.png)
@@ -73,6 +119,10 @@ add address-pool=LAN interface=brLAN lease-time=1h name=LANv6
 ```
 /ipv6 dhcp-client
 add add-default-route=yes interface=ether1 pool-name=LAN pool-prefix-length=72 request=prefix use-interface-duid=yes
+```
+```
+/ip address
+add address=172.31.4.129/26 interface=wireguard1 network=172.31.4.128
 ```
 
 Once it says "Status: bound", head back to your core router
@@ -103,6 +153,15 @@ and make it to your RouterOS VM.
 add action=accept chain=forward comment="Wireguard listening port on isr2" dst-address=2403:5800:3200:1403:300::1/128 dst-port=13231 log=yes log-prefix=WG protocol=udp
 ```
 
+## Public DNS record
+Now that you have assigned a persistent IPv6 address that the devices will be connecting to, we can make some future steps a little easier by creating a
+public DNS record that points to this address.
+
+If you don't own a public DNS domain you can skip this step or look to some of
+the free DNS record hosting solutions available (or just buy a cheap domain).
+
+TODO
+
 ## Wireguard Terminology
 Before we get into the wireguard setup itself, I found some of the fields in
 both the Android client and the RouterOS configuration to be a little ambiguous.
@@ -122,30 +181,32 @@ virtual network interface.  This is essentially a pretend LAN IP for the device
 that isn't really on a LAN.  This field should match the "Allowed Address(es)"
 field on the peer on the RouterOS end.
 
-## Addressing
-We need to decide what virtual IP addresses to assign to the peer's wireguard
-interfaces.
-
-We can (though I gave this limited testing) use IP addresses from
-the IPv6 private IP range.  The advantage here is that if our ISP changes our
-IPv6 prefix we don't need to reconfigure our network.  The down side is that you
-would need to setup static routes on (at least) your core router to send packets
-to wireguard clients via the wireguard interface (which might be on another
-RouterOS device).  https://dnschecker.org/ipv6-address-generator.php
-
-The alternative, which is what I have implemented, is to use IPs out of the
-prefix that was assigned to the wireguard1 interface from DHCPv6.  The advantage
-being that everything on my network knows how to route that prefix already.
-
-So, for me, my wireguard1 interface on my RouterOS VM is:
-2403:5800:3200:1403:300::1 and I'm going to use 2403:5800:3200:1403:300::5 as
-the first IP I assign to a device.
-
 ## Wireguard
 When creating the Wireguard interface, leave the "Private Key" and "Public Key"
 fields blank.  Keys will be generated when you save.
 ![RouterOS Wireguard Interface Settings](Wireguard/RouterOSWireguard.png)
+```
+/interface wireguard
+add listen-port=13231 mtu=1420 name=wireguard1 private-key="Ixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=
+```
+
+TODO: Screen shot of IPv6 Assignment
+```
+/ipv6 address
+add address=::1/72 advertise=no from-pool=LAN interface=wireguard1
+```
+
+TODO: Screen shot of IPv4 Assignment
+```
+/ip address
+add address=172.31.4.129/26 interface=wireguard1 network=172.31.4.128
+```
+
 ![RouterOS Wireguard Peer Settings](Wireguard/RouterOSWireguardPeer.png)
+```
+/interface wireguard peers
+add allowed-address=2403:5800:3200:1403:300::5/128,172.31.4.135/32 comment="Pixel 3 XL" interface=wireguard1 public-key="8yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy="
+```
 
 ## Android Client
 ![Android Client Settings](Wireguard/AndroidWireguard.png)
