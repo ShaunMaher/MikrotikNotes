@@ -36,7 +36,7 @@ VM.
 ### Android: Wireguard client
 <a href="https://play.google.com/store/apps/details?id=com.wireguard.android"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" width="200em" /></a>
 
-or [Download from F-Droid]("https://f-droid.org/en/packages/com.wireguard.android/")
+or [Download from F-Droid](https://f-droid.org/en/packages/com.wireguard.android/)
 
 ### Accurate time
 Wireguard complains if your peer clocks are a bit different.  Your mobile device
