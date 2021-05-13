@@ -6,24 +6,30 @@ This document is still a work in progress.
 TODO:
 - [ ] Write a better Intro/Overview
 - [ ] Networking is *sometimes* broken if device is on home Wifi (i.e. same network as the Wireguard server)
-- [ ] No support for IPv4 only mobile data network
+- [ ] New screen shots that include the IPv4 settings in peer and client
+- [ ] No support for IPv4 only mobile data/public Wifi networks
+  - This might be forever impossible if the Wireguard router is behind CG-NAT
 - [ ] Create a public DNS AAAA record for the RouterOS Peer
 - [ ] Generally the language below is poor and could be improved
 - [ ] Wireguard Peer screen shot contains the peer public key in the title bar
-
-I'm trying to make all parts of my network IPv6 native.  All devices that
-support it are dual stack IPv4 and IPv6.  My ISP provides an IPv6 /56 subnet
-and, with a little tinkering, my mobile data provider will assign my device a
-single IPv6 address.  Otherwise, both of my internet connections are behind
-CG-NAT for IPv4.
-
-My internal home/lab networks are all IPv6 enabled (again, dual stack).
 
 My goals are twofold:
 * Secure remote access to services on my home network (without just allowing public internet access to said services)
 * Route all traffic from my mobile device through my home ISP for privacy so
 that, for example, a public open Wifi access point can be used without my data
 being harvested.
+* Bonus: once Wireguard infrastructure is in place, replace my existing OpenVPN
+connections between my home and VPS networks.
+
+I'm trying to make all parts of my network IPv6 native.  All devices that
+support it are dual stack IPv4 and IPv6.  A failure to have fully working IPv6
+connectivity over the VPN will be considered a failure.
+
+My ISP provides an IPv6 /56 subnet and (at additional cost) a single static IPv4
+address that is not behind CG-NAT.
+
+With a little tinkering, my mobile data provider will assign my device a
+single IPv6 address.  IPv4 connectivity id behind CG-NAT.
 
 ## Prerequisites
 ### RouterOS 7
@@ -64,22 +70,20 @@ several subnets):
 router.  This avoids asymmetric routing.  This is probably unnecessary if you
 run Wireguard on your core router.
   * 172.31.4.193: The core router
-  * 172.31.4.199: The Wireguard router
+  * 172.31.4.199: The Wireguard router via static DHCP assignment on the core
+  router's DHCP server
 
 ### IPv6
 We need to decide what virtual IP addresses to assign to the peer's wireguard
 interfaces.
 
-We can (though I gave this limited testing) use IP addresses from
-the IPv6 private IP range.  The advantage here is that if our ISP changes our
-IPv6 prefix we don't need to reconfigure our network.  The down side is that you
-would need to setup static routes on (at least) your core router to send packets
-to wireguard clients via the wireguard interface (which might be on another
-RouterOS device).  https://dnschecker.org/ipv6-address-generator.php
+What I have implemented, is using IPs out of the prefix that was assigned to the
+wireguard1 interface from DHCPv6.  The advantage being that everything on my
+network knows how to route that prefix already and these IP addresses are real, globally routable IPs.
 
-The alternative, which is what I have implemented, is to use IPs out of the
-prefix that was assigned to the wireguard1 interface from DHCPv6.  The advantage
-being that everything on my network knows how to route that prefix already.
+If a private IPv6 range was used (and these do exist) I imagine that NAT would
+be required for the client devices to access the internet and RouterOS doesn't
+currently support IPv6 NAT.
 
 So, for me, my wireguard1 interface on my RouterOS VM is:
 2403:5800:3200:1403:300::1 and I'm going to use 2403:5800:3200:1403:300::5 as
@@ -103,39 +107,52 @@ two physical interfaces):
 /ipv6 dhcp-server
 add address-pool=LAN interface=brLAN lease-time=1h name=LANv6
 ```
+
+The following will create a new IP pool for the small IPv4 subnet that will be
+used for routing between the VM and the core network.  The same underlying
+physical network will be used (brLAN, not a dedicated VLAN).
 ```
 /ip pool
 add name=dhcp-ISR2 ranges=172.31.4.194-172.31.4.199
-/ip address
-add address=172.31.4.193/26 interface=brLAN network=172.31.4.192
-/ip dhcp-server lease
-add address=172.31.4.199 client-id=1:52:54:0:8d:28:4b mac-address=52:54:00:8D:28:4B server=dhcp-LAN
 /ip dhcp-server network
 add address=172.31.4.192/26 comment=ISR2 dns-server=172.30.0.1 gateway=172.31.4.193
+```
+Assign an IP address in the new subnet to this core router:
+```
+/ip address
+add address=172.31.4.193/26 interface=brLAN network=172.31.4.192
+```
+Assign a static lease to the VM so that it's IP is persistent:
+```
+/ip dhcp-server lease
+add address=172.31.4.199 client-id=1:52:54:0:8d:28:4b mac-address=52:54:00:8D:28:4B server=dhcp-LAN
+```
+Setup a static route that points all traffic for the Wireguard clients (for
+IPv4) to the VM.
+```
 /ip route
 add check-gateway=ping distance=1 dst-address=172.31.4.128/26 gateway=172.31.4.199
 ```
 
 ### On the RouterOS VM
+The VM should already be configured to get an IPv4 address, from the DHCP server
+we configured above, for it's *ether1* interface.
+
+For IPv6:
 ![DHCPv6](Wireguard/DHCPv6-02.png)
 
 ```
 /ipv6 dhcp-client
 add add-default-route=yes interface=ether1 pool-name=LAN pool-prefix-length=72 request=prefix use-interface-duid=yes
 ```
-```
-/ip address
-add address=172.31.4.129/26 interface=wireguard1 network=172.31.4.128
-```
-
-Once it says "Status: bound", head back to your core router
+Once it says "Status: bound", it's working as expected.
 
 ### On your core RouterOS router
 As super depressing as it is and as much as I hate to do it, we are going to be
 hard coding some IPv6 IP addresses.  The DHCPv6 subnet we just assigned to the
 VM is currently dynamic which means that it might change if the VM is restarted
 (for example).  We will make it a static reservation on the DHCPv6 server (the
-  core router) so that it becomes persistent.
+core router) so that it becomes persistent.
 
 ![DHCPv6](Wireguard/DHCPv6-03.png)
 
@@ -190,7 +207,7 @@ fields blank.  Keys will be generated when you save.
 ![RouterOS Wireguard Interface Settings](Wireguard/RouterOSWireguard.png)
 ```
 /interface wireguard
-add listen-port=13231 mtu=1420 name=wireguard1 private-key="Ixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=
+add listen-port=13231 mtu=1420 name=wireguard1 private-key="Ixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx="
 ```
 
 TODO: Screen shot of IPv6 Assignment
