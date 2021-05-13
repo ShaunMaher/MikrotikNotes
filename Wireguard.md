@@ -14,7 +14,7 @@ I'm trying to make all parts of my network IPv6 native.  All devices that
 support it are dual stack IPv4 and IPv6.  My ISP provides an IPv6 /56 subnet
 and, with a little tinkering, my mobile data provider will assign my device a
 single IPv6 address.  Otherwise, both of my internet connections are behind
-CG-NAT.
+CG-NAT for IPv4.
 
 My internal home/lab networks are all IPv6 enabled (again, dual stack).
 
@@ -34,7 +34,9 @@ To work around this, I have created a dedicated Wireguard RouterOS instance in a
 VM.
 
 ### Android: Wireguard client
-Get it from the Play Store.
+<a href="https://play.google.com/store/apps/details?id=com.wireguard.android"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" width="200em" /></a>
+
+or [Download from F-Droid]("https://f-droid.org/en/packages/com.wireguard.android/")
 
 ### Accurate time
 Wireguard complains if your peer clocks are a bit different.  Your mobile device
